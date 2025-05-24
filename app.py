@@ -164,7 +164,7 @@ def generate_code_from_image(image_base64, framework="default", responsive=True,
     prompt = f"""
     You are an expert front-end developer. I'm showing you a screenshot of a user interface.
     
-    Please analyze this image and generate the exact HTML and CSS code needed to recreate this interface.
+    Please analyze this image and generate the exact HTML, CSS, and JavaScript code needed to recreate this interface.
     
     Framework: {framework}
     Responsive Design: {"Yes" if responsive else "No"}
@@ -179,6 +179,9 @@ def generate_code_from_image(image_base64, framework="default", responsive=True,
     5. Organize the CSS in a clean, maintainable way
     6. Add helpful comments to explain your code
     7. If there are interactive elements like buttons, add basic functionality
+    8. Pay close attention to details like fonts, spacing, colors, and alignment
+    9. Ensure the code is accessible and follows best practices
+    10. Optimize the code for performance
     """
     
     # Framework-specific instructions
