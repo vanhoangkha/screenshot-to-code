@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project History - Screenshot to Code</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header class="d-flex justify-content-between align-items-center my-4">
+            <h1>Project History</h1>
+            <a href="{{ url_for('index') }}" class="btn btn-primary">
+                <i class="bi bi-plus-lg"></i> New Project
+            </a>
+        </header>
+
+        <div class="row">
+            {% if projects %}
+                {% for project in projects %}
+                    <div class="col-md-4 mb-4">
+                        <div class="card h-100 project-card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">{{ project.name }}</h5>
+                                <div class="dropdown">
+                                    <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="bi bi-three-dots-vertical"></i>
+                                    </button>
+                                    <ul class="dropdown-menu">
+                                        <li>
+                                            <a class="dropdown-item" href="{{ url_for('export_project', project_id=project.id) }}">
+                                                <i class="bi bi-download"></i> Export
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <button class="dropdown-item text-danger delete-project" data-project-id="{{ project.id }}">
+                                                <i class="bi bi-trash"></i> Delete
+                                            </button>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                {% if project.has_screenshot %}
+                                    <div class="project-screenshot mb-3">
+                                        <img src="{{ url_for('project_screenshot', project_id=project.id) }}" class="img-fluid" alt="Project Screenshot">
+                                    </div>
+                                {% else %}
+                                    <div class="project-screenshot-placeholder mb-3">
+                                        <i class="bi bi-image"></i>
+                                        <p>No screenshot available</p>
+                                    </div>
+                                {% endif %}
+                                
+                                <div class="project-details">
+                                    <p class="mb-1"><strong>Created:</strong> {{ project.created_at|datetime }}</p>
+                                    <p class="mb-1"><strong>Framework:</strong> {{ project.framework|title }}</p>
+                                </div>
+                            </div>
+                            <div class="card-footer">
+                                <a href="{{ url_for('view_project', project_id=project.id) }}" class="btn btn-primary w-100">
+                                    View Project
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <div class="col-12">
+                    <div class="alert alert-info">
+                        <p class="mb-0">No projects found. <a href="{{ url_for('index') }}">Create your first project</a>.</p>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="deleteModalLabel">Confirm Delete</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    Are you sure you want to delete this project? This action cannot be undone.
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger" id="confirmDelete">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+            const confirmDeleteBtn = document.getElementById('confirmDelete');
+            let projectToDelete = null;
+
+            // Handle delete button clicks
+            document.querySelectorAll('.delete-project').forEach(button => {
+                button.addEventListener('click', function() {
+                    projectToDelete = this.dataset.projectId;
+                    deleteModal.show();
+                });
+            });
+
+            // Handle confirm delete
+            confirmDeleteBtn.addEventListener('click', function() {
+                if (projectToDelete) {
+                    fetch(`/delete-project/${projectToDelete}`, {
+                        method: 'POST'
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            // Reload the page to reflect changes
+                            window.location.reload();
+                        } else {
+                            alert('Error: ' + data.error);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('An error occurred while deleting the project.');
+                    })
+                    .finally(() => {
+                        deleteModal.hide();
+                    });
+                }
+            });
+        });
+    </script>
+</body>
+</html>

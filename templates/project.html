@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ metadata.name }} - Screenshot to Code</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/github.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container-fluid">
+        <header class="d-flex justify-content-between align-items-center py-3 px-4 border-bottom">
+            <div>
+                <h1 class="h3 mb-0">{{ metadata.name }}</h1>
+                <p class="text-muted mb-0">Created: {{ metadata.created_at|datetime }}</p>
+            </div>
+            <div>
+                <a href="{{ url_for('history') }}" class="btn btn-outline-secondary me-2">
+                    <i class="bi bi-arrow-left"></i> Back to History
+                </a>
+                <a href="{{ url_for('export_project', project_id=project_id) }}" class="btn btn-primary">
+                    <i class="bi bi-download"></i> Export Project
+                </a>
+            </div>
+        </header>
+
+        <div class="row g-0">
+            <!-- Left panel: Screenshot -->
+            <div class="col-md-3 border-end">
+                <div class="p-3">
+                    <h5>Original Screenshot</h5>
+                    {% if has_screenshot %}
+                        <div class="screenshot-container">
+                            <img src="{{ url_for('project_screenshot', project_id=project_id) }}" class="img-fluid border" alt="Original Screenshot">
+                        </div>
+                    {% else %}
+                        <div class="alert alert-warning">
+                            Screenshot not available
+                        </div>
+                    {% endif %}
+
+                    <div class="mt-4">
+                        <h5>Project Details</h5>
+                        <table class="table table-sm">
+                            <tbody>
+                                <tr>
+                                    <th>Framework</th>
+                                    <td>{{ metadata.framework|title }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Responsive</th>
+                                    <td>{{ "Yes" if metadata.responsive else "No" }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Animations</th>
+                                    <td>{{ "Yes" if metadata.animations else "No" }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Dark Mode</th>
+                                    <td>{{ "Yes" if metadata.dark_mode else "No" }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right panel: Code and Preview -->
+            <div class="col-md-9">
+                <div class="p-3">
+                    <ul class="nav nav-tabs" id="projectTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="preview-tab" data-bs-toggle="tab" data-bs-target="#preview" type="button" role="tab" aria-controls="preview" aria-selected="true">
+                                <i class="bi bi-eye"></i> Preview
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="html-tab" data-bs-toggle="tab" data-bs-target="#html" type="button" role="tab" aria-controls="html" aria-selected="false">
+                                <i class="bi bi-code-slash"></i> HTML
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="css-tab" data-bs-toggle="tab" data-bs-target="#css" type="button" role="tab" aria-controls="css" aria-selected="false">
+                                <i class="bi bi-brush"></i> CSS
+                            </button>
+                        </li>
+                        {% if js_code %}
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="js-tab" data-bs-toggle="tab" data-bs-target="#js" type="button" role="tab" aria-controls="js" aria-selected="false">
+                                <i class="bi bi-filetype-js"></i> JavaScript
+                            </button>
+                        </li>
+                        {% endif %}
+                    </ul>
+
+                    <div class="tab-content mt-3" id="projectTabsContent">
+                        <div class="tab-pane fade show active" id="preview" role="tabpanel" aria-labelledby="preview-tab">
+                            <div class="preview-controls mb-3">
+                                <div class="btn-group">
+                                    <button class="btn btn-outline-secondary" data-device="desktop">
+                                        <i class="bi bi-display"></i> Desktop
+                                    </button>
+                                    <button class="btn btn-outline-secondary" data-device="tablet">
+                                        <i class="bi bi-tablet"></i> Tablet
+                                    </button>
+                                    <button class="btn btn-outline-secondary" data-device="mobile">
+                                        <i class="bi bi-phone"></i> Mobile
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="preview-container desktop">
+                                <iframe id="previewFrame" class="preview-frame"></iframe>
+                            </div>
+                        </div>
+
+                        <div class="tab-pane fade" id="html" role="tabpanel" aria-labelledby="html-tab">
+                            <div class="d-flex justify-content-end mb-2">
+                                <button class="btn btn-sm btn-outline-secondary copy-btn" data-target="htmlCode">
+                                    <i class="bi bi-clipboard"></i> Copy
+                                </button>
+                            </div>
+                            <pre><code id="htmlCode" class="language-html">{{ html_code }}</code></pre>
+                        </div>
+
+                        <div class="tab-pane fade" id="css" role="tabpanel" aria-labelledby="css-tab">
+                            <div class="d-flex justify-content-end mb-2">
+                                <button class="btn btn-sm btn-outline-secondary copy-btn" data-target="cssCode">
+                                    <i class="bi bi-clipboard"></i> Copy
+                                </button>
+                            </div>
+                            <pre><code id="cssCode" class="language-css">{{ css_code }}</code></pre>
+                        </div>
+
+                        {% if js_code %}
+                        <div class="tab-pane fade" id="js" role="tabpanel" aria-labelledby="js-tab">
+                            <div class="d-flex justify-content-end mb-2">
+                                <button class="btn btn-sm btn-outline-secondary copy-btn" data-target="jsCode">
+                                    <i class="bi bi-clipboard"></i> Copy
+                                </button>
+                            </div>
+                            <pre><code id="jsCode" class="language-javascript">{{ js_code }}</code></pre>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize syntax highlighting
+            document.querySelectorAll('pre code').forEach((block) => {
+                hljs.highlightElement(block);
+            });
+
+            // Initialize preview iframe
+            const previewFrame = document.getElementById('previewFrame');
+            const frameDoc = previewFrame.contentDocument || previewFrame.contentWindow.document;
+            frameDoc.open();
+            frameDoc.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <style>${document.getElementById('cssCode').textContent}</style>
+                </head>
+                <body>${document.getElementById('htmlCode').textContent}</body>
+                </html>
+            `);
+            frameDoc.close();
+
+            // Handle device preview buttons
+            document.querySelectorAll('.preview-controls button').forEach(button => {
+                button.addEventListener('click', function() {
+                    const device = this.dataset.device;
+                    const container = document.querySelector('.preview-container');
+                    
+                    // Remove all device classes
+                    container.classList.remove('desktop', 'tablet', 'mobile');
+                    
+                    // Add the selected device class
+                    container.classList.add(device);
+                    
+                    // Update active button
+                    document.querySelectorAll('.preview-controls button').forEach(btn => {
+                        btn.classList.remove('active');
+                    });
+                    this.classList.add('active');
+                });
+            });
+
+            // Set desktop as default
+            document.querySelector('[data-device="desktop"]').classList.add('active');
+
+            // Handle copy buttons
+            document.querySelectorAll('.copy-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const targetId = this.dataset.target;
+                    const text = document.getElementById(targetId).textContent;
+                    
+                    navigator.clipboard.writeText(text).then(() => {
+                        // Show success feedback
+                        const originalText = this.innerHTML;
+                        this.innerHTML = '<i class="bi bi-check"></i> Copied!';
+                        this.classList.add('btn-success');
+                        this.classList.remove('btn-outline-secondary');
+                        
+                        setTimeout(() => {
+                            this.innerHTML = originalText;
+                            this.classList.remove('btn-success');
+                            this.classList.add('btn-outline-secondary');
+                        }, 2000);
+                    }).catch(err => {
+                        console.error('Could not copy text: ', err);
+                    });
+                });
+            });
+        });
+    </script>
+</body>
+</html>
