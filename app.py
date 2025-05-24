@@ -19,8 +19,8 @@ bedrock_runtime = boto3.client(
     region_name=os.environ.get('AWS_REGION', 'us-east-1')
 )
 
-# Claude model ID - use the latest available Claude model with vision capabilities
-MODEL_ID = 'anthropic.claude-3-sonnet-20240229-v1:0'  # Update as needed
+# Claude model ID - use Claude 3.7 Sonnet
+MODEL_ID = 'anthropic.claude-3-7-sonnet-20240620-v1:0'  # Updated to Claude 3.7
 
 # Configure upload folders
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')

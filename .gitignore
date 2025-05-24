@@ -1,5 +1,7 @@
 # Environment variables
 .env
+.env.*
+!.env.example
 
 # Python
 __pycache__/
@@ -37,3 +39,8 @@ env/
 # OS specific files
 .DS_Store
 Thumbs.db
+
+# Application specific
+uploads/
+history/
+exports/
