@@ -31,6 +31,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // Handle image upload and preview
     imageUpload.addEventListener('change', function() {
         if (this.files && this.files[0]) {
+            // Check file size
+            if (this.files[0].size > 5 * 1024 * 1024) {
+                showError('File size exceeds 5MB limit. Please choose a smaller file.');
+                this.value = '';
+                return;
+            }
+            
             const reader = new FileReader();
             
             reader.onload = function(e) {
@@ -45,8 +52,26 @@ document.addEventListener('DOMContentLoaded', function() {
     // Handle image URL input
     imageUrl.addEventListener('change', function() {
         if (this.value) {
-            preview.src = this.value;
+            // Simple URL validation
+            if (!isValidUrl(this.value)) {
+                showError('Please enter a valid URL');
+                return;
+            }
+            
+            // Show loading state for preview
+            preview.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJmZWF0aGVyIGZlYXRoZXItbG9hZGVyIj48bGluZSB4MT0iMTIiIHkxPSIyIiB4Mj0iMTIiIHkyPSI2Ij48L2xpbmU+PGxpbmUgeDE9IjEyIiB5MT0iMTgiIHgyPSIxMiIgeTI9IjIyIj48L2xpbmU+PGxpbmUgeDE9IjQuOTMiIHkxPSI0LjkzIiB4Mj0iNy43NiIgeTI9IjcuNzYiPjwvbGluZT48bGluZSB4MT0iMTYuMjQiIHkxPSIxNi4yNCIgeDI9IjE5LjA3IiB5Mj0iMTkuMDciPjwvbGluZT48bGluZSB4MT0iMiIgeTE9IjEyIiB4Mj0iNiIgeTI9IjEyIj48L2xpbmU+PGxpbmUgeDE9IjE4IiB5MT0iMTIiIHgyPSIyMiIgeTI9IjEyIj48L2xpbmU+PGxpbmUgeDE9IjQuOTMiIHkxPSIxOS4wNyIgeDI9IjcuNzYiIHkyPSIxNi4yNCI+PC9saW5lPjxsaW5lIHgxPSIxNi4yNCIgeTE9IjcuNzYiIHgyPSIxOS4wNyIgeTI9IjQuOTMiPjwvbGluZT48L3N2Zz4=';
             imagePreview.classList.remove('d-none');
+            
+            // Try to load the image to verify it exists
+            const img = new Image();
+            img.onload = function() {
+                preview.src = imageUrl.value;
+            };
+            img.onerror = function() {
+                preview.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJmZWF0aGVyIGZlYXRoZXItYWxlcnQtY2lyY2xlIj48Y2lyY2xlIGN4PSIxMiIgY3k9IjEyIiByPSIxMCI+PC9jaXJjbGU+PGxpbmUgeDE9IjEyIiB5MT0iOCIgeDI9IjEyIiB5Mj0iMTIiPjwvbGluZT48bGluZSB4MT0iMTIiIHkxPSIxNiIgeDI9IjEyLjAxIiB5Mj0iMTYiPjwvbGluZT48L3N2Zz4=';
+                showError('Could not load image from URL. Please check the URL and try again.');
+            };
+            img.src = this.value;
         }
     });
 
@@ -102,6 +127,9 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Reset progress bar
         progressBar.style.width = '0%';
+        
+        // Start progress animation
+        startProgressAnimation();
         
         // Send request to server
         fetch('/generate', {
@@ -242,5 +270,26 @@ document.addEventListener('DOMContentLoaded', function() {
             button.classList.remove('btn-success');
             button.classList.add('btn-outline-secondary');
         }, 2000);
+    }
+    
+    function isValidUrl(string) {
+        try {
+            new URL(string);
+            return true;
+        } catch (_) {
+            return false;
+        }
+    }
+    
+    function startProgressAnimation() {
+        let width = 0;
+        const interval = setInterval(() => {
+            if (width >= 90) {
+                clearInterval(interval);
+            } else {
+                width += 1;
+                progressBar.style.width = width + '%';
+            }
+        }, 600);
     }
 });

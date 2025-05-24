@@ -6,21 +6,44 @@ import uuid
 import requests
 import datetime
 import shutil
-from flask import Flask, render_template, request, jsonify, send_file, url_for
+import logging
+from flask import Flask, render_template, request, jsonify, send_file, url_for, redirect
 from PIL import Image
 from io import BytesIO
 from werkzeug.utils import secure_filename
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("app.log"),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# Configure AWS Bedrock client
-bedrock_runtime = boto3.client(
-    service_name='bedrock-runtime',
-    region_name=os.environ.get('AWS_REGION', 'us-east-1')
-)
+# Configure AWS Bedrock client with proper error handling
+try:
+    bedrock_runtime = boto3.client(
+        service_name='bedrock-runtime',
+        region_name=os.environ.get('AWS_REGION', 'us-east-1'),
+        aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'),
+        aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY')
+    )
+    logger.info("AWS Bedrock client initialized successfully")
+except Exception as e:
+    logger.error(f"Failed to initialize AWS Bedrock client: {str(e)}")
+    bedrock_runtime = None
 
 # Claude model ID - use Claude 3.7 Sonnet
-MODEL_ID = 'anthropic.claude-3-7-sonnet-20240620-v1:0'  # Updated to Claude 3.7
+MODEL_ID = 'anthropic.claude-3-7-sonnet-20240620-v1:0'
 
 # Configure upload folders
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
@@ -35,6 +58,10 @@ os.makedirs(EXPORT_FOLDER, exist_ok=True)
 # Allowed image extensions
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
+# Maximum file size (5MB)
+MAX_CONTENT_LENGTH = 5 * 1024 * 1024
+app.config['MAX_CONTENT_LENGTH'] = MAX_CONTENT_LENGTH
+
 # Custom template filters
 @app.template_filter('datetime')
 def format_datetime(value):
@@ -46,12 +73,31 @@ def format_datetime(value):
         return dt.strftime("%b %d, %Y at %H:%M")
     except:
         return value
-
 def allowed_file(filename):
     """
     Check if the file has an allowed extension
     """
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def clean_old_files(folder, max_age_days=7):
+    """
+    Clean up old files from a folder
+    """
+    now = datetime.datetime.now()
+    count = 0
+    
+    for filename in os.listdir(folder):
+        file_path = os.path.join(folder, filename)
+        if os.path.isfile(file_path):
+            file_age = datetime.datetime.fromtimestamp(os.path.getmtime(file_path))
+            if (now - file_age).days > max_age_days:
+                try:
+                    os.remove(file_path)
+                    count += 1
+                except Exception as e:
+                    logger.error(f"Error deleting {file_path}: {str(e)}")
+    
+    return count
 
 def save_project(project_id, image_path, html_code, css_code, js_code, framework, metadata):
     """
@@ -108,36 +154,39 @@ def get_projects():
                         'has_screenshot': has_screenshot
                     })
                 except Exception as e:
-                    print(f"Error loading project {project_id}: {str(e)}")
+                    logger.error(f"Error loading project {project_id}: {str(e)}")
     
     # Sort by creation date (newest first)
     projects.sort(key=lambda x: x.get('created_at', ''), reverse=True)
     return projects
-
 def process_image(image_data):
     """
     Process the image and convert to base64 for Bedrock API
     """
-    # Open the image using PIL
-    img = Image.open(BytesIO(image_data))
-    
-    # Resize if needed (optional)
-    max_size = 2000  # Claude has an 8000px limit, but we'll use a smaller size
-    if max(img.size) > max_size:
-        ratio = max_size / max(img.size)
-        new_size = (int(img.size[0] * ratio), int(img.size[1] * ratio))
-        img = img.resize(new_size, Image.LANCZOS)
-    
-    # Convert to JPEG format
-    buffer = BytesIO()
-    if img.mode != 'RGB':
-        img = img.convert('RGB')
-    img.save(buffer, format="JPEG")
-    buffer.seek(0)
-    
-    # Convert to base64
-    img_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
-    return img_base64
+    try:
+        # Open the image using PIL
+        img = Image.open(BytesIO(image_data))
+        
+        # Resize if needed (optional)
+        max_size = 2000  # Claude has an 8000px limit, but we'll use a smaller size
+        if max(img.size) > max_size:
+            ratio = max_size / max(img.size)
+            new_size = (int(img.size[0] * ratio), int(img.size[1] * ratio))
+            img = img.resize(new_size, Image.LANCZOS)
+        
+        # Convert to JPEG format
+        buffer = BytesIO()
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+        img.save(buffer, format="JPEG", quality=85)  # Reduced quality for smaller size
+        buffer.seek(0)
+        
+        # Convert to base64
+        img_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+        return img_base64
+    except Exception as e:
+        logger.error(f"Error processing image: {str(e)}")
+        raise ValueError(f"Failed to process image: {str(e)}")
 
 def download_image(url):
     """
@@ -152,14 +201,23 @@ def download_image(url):
         if not content_type.startswith('image/'):
             raise ValueError(f"URL does not point to an image (Content-Type: {content_type})")
         
+        # Check file size
+        content_length = int(response.headers.get('Content-Length', 0))
+        if content_length > MAX_CONTENT_LENGTH:
+            raise ValueError(f"Image is too large ({content_length / (1024 * 1024):.2f}MB). Maximum size is 5MB.")
+        
         return response.content
-    except Exception as e:
+    except requests.RequestException as e:
+        logger.error(f"Error downloading image: {str(e)}")
         raise Exception(f"Failed to download image: {str(e)}")
 
 def generate_code_from_image(image_base64, framework="default", responsive=True, animations=False, dark_mode=False):
     """
     Use AWS Bedrock with Claude to generate HTML/CSS code from the image
     """
+    if not bedrock_runtime:
+        raise Exception("AWS Bedrock client is not initialized. Check your credentials.")
+        
     # Base prompt
     prompt = f"""
     You are an expert front-end developer. I'm showing you a screenshot of a user interface.
@@ -183,41 +241,45 @@ def generate_code_from_image(image_base64, framework="default", responsive=True,
     9. Ensure the code is accessible and follows best practices
     10. Optimize the code for performance
     """
-    
     # Framework-specific instructions
     if framework == "bootstrap":
         prompt += """
-        8. Use Bootstrap 5 for styling and components
-        9. Include the necessary Bootstrap CDN links
-        10. Utilize Bootstrap's grid system and utility classes
+        11. Use Bootstrap 5 for styling and components
+        12. Include the necessary Bootstrap CDN links
+        13. Utilize Bootstrap's grid system and utility classes
+        14. Follow Bootstrap's component guidelines
         """
     elif framework == "tailwind":
         prompt += """
-        8. Use Tailwind CSS for styling
-        9. Include the necessary Tailwind CDN links
-        10. Use Tailwind's utility classes for all styling
+        11. Use Tailwind CSS for styling
+        12. Include the necessary Tailwind CDN links
+        13. Use Tailwind's utility classes for all styling
+        14. Follow Tailwind's design patterns
         """
     elif framework == "material":
         prompt += """
-        8. Use Material UI styling and components
-        9. Include the necessary Material UI CDN links
-        10. Follow Material Design principles
+        11. Use Material UI styling and components
+        12. Include the necessary Material UI CDN links
+        13. Follow Material Design principles
+        14. Use appropriate Material Design icons
         """
     
     # Animation instructions
     if animations:
         prompt += """
-        11. Add subtle animations for interactive elements
-        12. Use CSS transitions for smooth effects
-        13. Consider adding hover animations for buttons and links
+        15. Add subtle animations for interactive elements
+        16. Use CSS transitions for smooth effects
+        17. Consider adding hover animations for buttons and links
+        18. Ensure animations are not excessive or distracting
         """
     
     # Dark mode instructions
     if dark_mode:
         prompt += """
-        14. Implement dark mode support using CSS variables
-        15. Provide a toggle mechanism for switching between light and dark modes
-        16. Ensure good contrast in both modes
+        19. Implement dark mode support using CSS variables
+        20. Provide a toggle mechanism for switching between light and dark modes
+        21. Ensure good contrast in both modes
+        22. Use appropriate color schemes for each mode
         """
     
     prompt += """
@@ -239,10 +301,13 @@ def generate_code_from_image(image_base64, framework="default", responsive=True,
     """
     
     try:
+        logger.info(f"Generating code with framework: {framework}, responsive: {responsive}, animations: {animations}, dark_mode: {dark_mode}")
+        
         # Prepare the request body for Claude
         request_body = {
             "anthropic_version": "bedrock-2023-05-31",
             "max_tokens": 4000,
+            "temperature": 0.2,  # Lower temperature for more consistent results
             "messages": [
                 {
                     "role": "user",
@@ -299,6 +364,8 @@ def generate_code_from_image(image_base64, framework="default", responsive=True,
             js_end = generated_text.find("```", js_start)
             js_code = generated_text[js_start:js_end].strip()
         
+        logger.info("Code generation successful")
+        
         return {
             "html": html_code,
             "css": css_code,
@@ -307,17 +374,37 @@ def generate_code_from_image(image_base64, framework="default", responsive=True,
         }
         
     except Exception as e:
-        print(f"Error generating code: {str(e)}")
+        logger.error(f"Error generating code: {str(e)}")
         return {
             "error": str(e),
             "html": "",
             "css": "",
             "js": ""
         }
-
 @app.route('/')
 def index():
+    # Clean up old files
+    try:
+        uploads_cleaned = clean_old_files(UPLOAD_FOLDER)
+        exports_cleaned = clean_old_files(EXPORT_FOLDER)
+        if uploads_cleaned > 0 or exports_cleaned > 0:
+            logger.info(f"Cleaned up {uploads_cleaned} old uploads and {exports_cleaned} old exports")
+    except Exception as e:
+        logger.error(f"Error cleaning up old files: {str(e)}")
+    
     return render_template('index.html')
+
+@app.route('/health')
+def health_check():
+    """
+    Health check endpoint for monitoring
+    """
+    status = {
+        "status": "healthy",
+        "timestamp": datetime.datetime.now().isoformat(),
+        "bedrock_client": "initialized" if bedrock_runtime else "not initialized"
+    }
+    return jsonify(status)
 
 @app.route('/history')
 def history():
@@ -365,8 +452,8 @@ def view_project(project_id):
         )
     
     except Exception as e:
+        logger.error(f"Error loading project {project_id}: {str(e)}")
         return render_template('error.html', message=f"Error loading project: {str(e)}"), 500
-
 @app.route('/project/<project_id>/screenshot')
 def project_screenshot(project_id):
     screenshot_path = os.path.join(HISTORY_FOLDER, project_id, 'screenshot.jpg')
@@ -401,6 +488,7 @@ def export_project(project_id):
         return send_file(zip_path, as_attachment=True, download_name=f"screenshot-to-code-{project_id}.zip")
     
     except Exception as e:
+        logger.error(f"Export failed for project {project_id}: {str(e)}")
         return jsonify({"error": f"Export failed: {str(e)}"}), 500
 
 @app.route('/generate', methods=['POST'])
@@ -446,6 +534,7 @@ def generate():
                 f.write(image_data)
         
         except Exception as e:
+            logger.error(f"Error processing image URL: {str(e)}")
             return jsonify({"error": str(e)}), 400
     
     else:
@@ -493,8 +582,8 @@ def generate():
         return jsonify(result)
     
     except Exception as e:
+        logger.error(f"Error in generate endpoint: {str(e)}")
         return jsonify({"error": str(e)}), 500
-
 @app.route('/delete-project/<project_id>', methods=['POST'])
 def delete_project(project_id):
     project_folder = os.path.join(HISTORY_FOLDER, project_id)
@@ -505,10 +594,69 @@ def delete_project(project_id):
     try:
         # Delete the project folder
         shutil.rmtree(project_folder)
+        logger.info(f"Project {project_id} deleted successfully")
         return jsonify({"success": True})
     
     except Exception as e:
+        logger.error(f"Failed to delete project {project_id}: {str(e)}")
         return jsonify({"error": f"Failed to delete project: {str(e)}"}), 500
 
+@app.route('/duplicate-project/<project_id>', methods=['POST'])
+def duplicate_project(project_id):
+    source_folder = os.path.join(HISTORY_FOLDER, project_id)
+    
+    if not os.path.exists(source_folder):
+        return jsonify({"error": "Project not found"}), 404
+    
+    try:
+        # Generate a new project ID
+        new_project_id = str(uuid.uuid4())
+        target_folder = os.path.join(HISTORY_FOLDER, new_project_id)
+        
+        # Copy the project folder
+        shutil.copytree(source_folder, target_folder)
+        
+        # Update metadata
+        metadata_path = os.path.join(target_folder, 'metadata.json')
+        if os.path.exists(metadata_path):
+            with open(metadata_path, 'r') as f:
+                metadata = json.load(f)
+            
+            metadata['name'] = f"Copy of {metadata.get('name', 'Untitled Project')}"
+            metadata['created_at'] = datetime.datetime.now().isoformat()
+            
+            with open(metadata_path, 'w') as f:
+                json.dump(metadata, f)
+        
+        logger.info(f"Project {project_id} duplicated as {new_project_id}")
+        return jsonify({"success": True, "new_project_id": new_project_id})
+    
+    except Exception as e:
+        logger.error(f"Failed to duplicate project {project_id}: {str(e)}")
+        return jsonify({"error": f"Failed to duplicate project: {str(e)}"}), 500
+
+@app.errorhandler(413)
+def request_entity_too_large(error):
+    return render_template('error.html', message="File too large. Maximum size is 5MB."), 413
+
+@app.errorhandler(404)
+def page_not_found(error):
+    return render_template('error.html', message="Page not found."), 404
+
+@app.errorhandler(500)
+def internal_server_error(error):
+    return render_template('error.html', message="Internal server error. Please try again later."), 500
+
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+    # Clean up old files on startup
+    try:
+        uploads_cleaned = clean_old_files(UPLOAD_FOLDER)
+        exports_cleaned = clean_old_files(EXPORT_FOLDER)
+        logger.info(f"Startup cleanup: removed {uploads_cleaned} old uploads and {exports_cleaned} old exports")
+    except Exception as e:
+        logger.error(f"Error during startup cleanup: {str(e)}")
+    
+    port = int(os.environ.get('PORT', 5000))
+    debug = os.environ.get('FLASK_ENV') == 'development'
+    
+    app.run(debug=debug, host='0.0.0.0', port=port)

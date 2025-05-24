@@ -12,6 +12,8 @@ This application uses AWS Bedrock with Claude 3.7 Sonnet's vision capabilities t
 - Project history and management
 - Code preview with responsive testing
 - Export projects as complete packages
+- Duplicate and delete projects
+- Automatic file cleanup
 
 ## Architecture
 
@@ -54,7 +56,12 @@ This application uses AWS Bedrock with Claude 3.7 Sonnet's vision capabilities t
    python app.py
    ```
 
-5. Open your browser and navigate to `http://localhost:5000`
+5. For production deployment:
+   ```
+   gunicorn app:app
+   ```
+
+6. Open your browser and navigate to `http://localhost:5000`
 
 ## Usage
 
@@ -65,14 +72,6 @@ This application uses AWS Bedrock with Claude 3.7 Sonnet's vision capabilities t
 5. View the generated HTML, CSS, and JavaScript code
 6. Test the responsive design with desktop, tablet, and mobile views
 7. Save or export your project
-
-## AWS Bedrock Configuration
-
-This application uses the Claude 3.7 Sonnet model from Anthropic via AWS Bedrock. Make sure your AWS account has:
-
-1. Access to AWS Bedrock service
-2. Permissions to invoke the Claude 3.7 Sonnet model
-3. Proper IAM roles configured
 
 ## Project Structure
 
@@ -96,11 +95,31 @@ screenshot-to-code/
 └── exports/               # Exported projects (not in version control)
 ```
 
-## Security Notes
+## AWS Bedrock Configuration
 
-- The application stores uploaded images and generated code locally
-- AWS credentials should be kept secure and never committed to version control
-- Use proper IAM roles and permissions for AWS Bedrock access
+This application uses the Claude 3.7 Sonnet model from Anthropic via AWS Bedrock. Make sure your AWS account has:
+
+1. Access to AWS Bedrock service
+2. Permissions to invoke the Claude 3.7 Sonnet model
+3. Proper IAM roles configured
+
+## Security Features
+
+- Automatic file cleanup to prevent storage bloat
+- Input validation for all user inputs
+- File size limits (5MB max)
+- Secure file handling with sanitized filenames
+- Environment variable configuration
+- Error handling and logging
+
+## Development
+
+To contribute to this project:
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
 
 ## License
 

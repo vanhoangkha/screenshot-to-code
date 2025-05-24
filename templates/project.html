@@ -4,9 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ metadata.name }} - Screenshot to Code</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/github.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
@@ -64,6 +64,21 @@
                             </tbody>
                         </table>
                     </div>
+                    
+                    <div class="mt-4">
+                        <h5>Actions</h5>
+                        <div class="d-grid gap-2">
+                            <a href="{{ url_for('export_project', project_id=project_id) }}" class="btn btn-outline-primary">
+                                <i class="bi bi-download"></i> Export as ZIP
+                            </a>
+                            <button class="btn btn-outline-secondary duplicate-project" data-project-id="{{ project_id }}">
+                                <i class="bi bi-copy"></i> Duplicate Project
+                            </button>
+                            <button class="btn btn-outline-danger delete-project" data-project-id="{{ project_id }}">
+                                <i class="bi bi-trash"></i> Delete Project
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -99,7 +114,7 @@
                         <div class="tab-pane fade show active" id="preview" role="tabpanel" aria-labelledby="preview-tab">
                             <div class="preview-controls mb-3">
                                 <div class="btn-group">
-                                    <button class="btn btn-outline-secondary" data-device="desktop">
+                                    <button class="btn btn-outline-secondary active" data-device="desktop">
                                         <i class="bi bi-display"></i> Desktop
                                     </button>
                                     <button class="btn btn-outline-secondary" data-device="tablet">
@@ -149,8 +164,27 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+    <!-- Delete Confirmation Modal -->
+    <div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="deleteModalLabel">Confirm Delete</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    Are you sure you want to delete this project? This action cannot be undone.
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger" id="confirmDelete">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // Initialize syntax highlighting
@@ -166,9 +200,11 @@
                 <!DOCTYPE html>
                 <html>
                 <head>
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
                     <style>${document.getElementById('cssCode').textContent}</style>
                 </head>
                 <body>${document.getElementById('htmlCode').textContent}</body>
+                <script>${document.getElementById('jsCode') ? document.getElementById('jsCode').textContent : ''}</script>
                 </html>
             `);
             frameDoc.close();
@@ -193,9 +229,6 @@
                 });
             });
 
-            // Set desktop as default
-            document.querySelector('[data-device="desktop"]').classList.add('active');
-
             // Handle copy buttons
             document.querySelectorAll('.copy-btn').forEach(button => {
                 button.addEventListener('click', function() {
@@ -217,6 +250,62 @@
                     }).catch(err => {
                         console.error('Could not copy text: ', err);
                     });
+                });
+            });
+            
+            // Handle delete project
+            const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+            const confirmDeleteBtn = document.getElementById('confirmDelete');
+            let projectToDelete = null;
+            
+            document.querySelector('.delete-project').addEventListener('click', function() {
+                projectToDelete = this.dataset.projectId;
+                deleteModal.show();
+            });
+            
+            confirmDeleteBtn.addEventListener('click', function() {
+                if (projectToDelete) {
+                    fetch(`/delete-project/${projectToDelete}`, {
+                        method: 'POST'
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            // Redirect to history page
+                            window.location.href = "{{ url_for('history') }}";
+                        } else {
+                            alert('Error: ' + data.error);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('An error occurred while deleting the project.');
+                    })
+                    .finally(() => {
+                        deleteModal.hide();
+                    });
+                }
+            });
+            
+            // Handle duplicate project
+            document.querySelector('.duplicate-project').addEventListener('click', function() {
+                const projectId = this.dataset.projectId;
+                
+                fetch(`/duplicate-project/${projectId}`, {
+                    method: 'POST'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Redirect to the history page
+                        window.location.href = "{{ url_for('history') }}";
+                    } else {
+                        alert('Error: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while duplicating the project.');
                 });
             });
         });

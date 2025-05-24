@@ -4,8 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Screenshot to Code - AWS Bedrock</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
@@ -13,7 +14,7 @@
         <header class="d-flex justify-content-between align-items-center my-4">
             <div>
                 <h1>Screenshot to Code</h1>
-                <p class="lead mb-0">Convert UI screenshots to HTML/CSS with AWS Bedrock and Claude</p>
+                <p class="lead mb-0">Convert UI screenshots to HTML/CSS/JS with AWS Bedrock and Claude 3.7</p>
             </div>
             <div>
                 <a href="{{ url_for('history') }}" class="btn btn-outline-primary">
@@ -51,7 +52,7 @@
                             <div class="tab-content" id="inputTabsContent">
                                 <div class="tab-pane fade show active" id="upload-tab-pane" role="tabpanel" tabindex="0">
                                     <div class="mb-3">
-                                        <label for="imageUpload" class="form-label">Select an image file</label>
+                                        <label for="imageUpload" class="form-label">Select an image file (max 5MB)</label>
                                         <input class="form-control" type="file" id="imageUpload" name="image" accept="image/*">
                                     </div>
                                 </div>
@@ -72,7 +73,7 @@
                             
                             <div class="mb-3">
                                 <label class="form-label">Framework</label>
-                                <div class="d-flex gap-2">
+                                <div class="d-flex gap-2 flex-wrap">
                                     <div class="form-check">
                                         <input class="form-check-input" type="radio" name="framework" id="frameworkDefault" value="default" checked>
                                         <label class="form-check-label" for="frameworkDefault">
@@ -147,7 +148,7 @@
                             <div class="spinner-border text-primary" role="status">
                                 <span class="visually-hidden">Loading...</span>
                             </div>
-                            <p class="mt-2">Generating code... This may take a minute.</p>
+                            <p class="mt-2">Generating code with Claude 3.7... This may take a minute.</p>
                             <div class="progress mt-3">
                                 <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
                             </div>
@@ -221,10 +222,14 @@
                 </div>
             </div>
         </div>
+        
+        <footer class="mt-5 mb-3 text-center text-muted">
+            <p>Powered by AWS Bedrock and Claude 3.7 Sonnet</p>
+        </footer>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>
